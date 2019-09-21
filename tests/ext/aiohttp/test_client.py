@@ -9,9 +9,6 @@ from aws_xray_sdk.ext.aiohttp.client import aws_xray_trace_config
 from aws_xray_sdk.ext.aiohttp.client import REMOTE_NAMESPACE, LOCAL_NAMESPACE
 
 
-# httpbin.org is created by the same author of requests to make testing http easy.
-BASE_URL = 'httpbin.org'
-
 
 @pytest.fixture(scope='function')
 def recorder(loop):
@@ -24,11 +21,11 @@ def recorder(loop):
     xray_recorder.clear_trace_entities()
 
 
-async def test_ok(loop, recorder):
+async def test_ok(loop, recorder, httpbin):
     xray_recorder.begin_segment('name')
     trace_config = aws_xray_trace_config()
     status_code = 200
-    url = 'http://{}/status/{}?foo=bar'.format(BASE_URL, status_code)
+    url = '{}/status/{}?foo=bar'.format(httpbin.url, status_code)
     async with ClientSession(loop=loop, trace_configs=[trace_config]) as session:
         async with session.get(url):
             pass
@@ -43,11 +40,11 @@ async def test_ok(loop, recorder):
     assert http_meta['response']['status'] == status_code
 
 
-async def test_ok_name(loop, recorder):
+async def test_ok_name(loop, recorder, httpbin):
     xray_recorder.begin_segment('name')
     trace_config = aws_xray_trace_config(name='test')
     status_code = 200
-    url = 'http://{}/status/{}?foo=bar'.format(BASE_URL, status_code)
+    url = '{}/status/{}?foo=bar'.format(httpbin.url, status_code)
     async with ClientSession(loop=loop, trace_configs=[trace_config]) as session:
         async with session.get(url):
             pass
@@ -56,11 +53,11 @@ async def test_ok_name(loop, recorder):
     assert subsegment.name == 'test'
 
 
-async def test_error(loop, recorder):
+async def test_error(loop, recorder, httpbin):
     xray_recorder.begin_segment('name')
     trace_config = aws_xray_trace_config()
     status_code = 400
-    url = 'http://{}/status/{}'.format(BASE_URL, status_code)
+    url = '{}/status/{}'.format(httpbin.url, status_code)
     async with ClientSession(loop=loop, trace_configs=[trace_config]) as session:
         async with session.post(url):
             pass
@@ -75,11 +72,11 @@ async def test_error(loop, recorder):
     assert http_meta['response']['status'] == status_code
 
 
-async def test_throttle(loop, recorder):
+async def test_throttle(loop, recorder, httpbin):
     xray_recorder.begin_segment('name')
     trace_config = aws_xray_trace_config()
     status_code = 429
-    url = 'http://{}/status/{}'.format(BASE_URL, status_code)
+    url = '{}/status/{}'.format(httpbin.url, status_code)
     async with ClientSession(loop=loop, trace_configs=[trace_config]) as session:
         async with session.head(url):
             pass
@@ -95,11 +92,11 @@ async def test_throttle(loop, recorder):
     assert http_meta['response']['status'] == status_code
 
 
-async def test_fault(loop, recorder):
+async def test_fault(loop, recorder, httpbin):
     xray_recorder.begin_segment('name')
     trace_config = aws_xray_trace_config()
     status_code = 500
-    url = 'http://{}/status/{}'.format(BASE_URL, status_code)
+    url = '{}/status/{}'.format(httpbin.url, status_code)
     async with ClientSession(loop=loop, trace_configs=[trace_config]) as session:
         async with session.put(url):
             pass
@@ -133,22 +130,22 @@ async def test_invalid_url(loop, recorder):
     assert exception.type == 'ClientConnectorError'
 
 
-async def test_no_segment_raise(loop, recorder):
+async def test_no_segment_raise(loop, recorder, httpbin):
     xray_recorder.configure(context_missing='RUNTIME_ERROR')
     trace_config = aws_xray_trace_config()
     status_code = 200
-    url = 'http://{}/status/{}?foo=bar'.format(BASE_URL, status_code)
+    url = '{}/status/{}?foo=bar'.format(httpbin.url, status_code)
     with pytest.raises(SegmentNotFoundException):
         async with ClientSession(loop=loop, trace_configs=[trace_config]) as session:
             async with session.get(url):
                 pass
 
 
-async def test_no_segment_not_raise(loop, recorder):
+async def test_no_segment_not_raise(loop, recorder, httpbin):
     xray_recorder.configure(context_missing='LOG_ERROR')
     trace_config = aws_xray_trace_config()
     status_code = 200
-    url = 'http://{}/status/{}?foo=bar'.format(BASE_URL, status_code)
+    url = '{}/status/{}?foo=bar'.format(httpbin.url, status_code)
     async with ClientSession(loop=loop, trace_configs=[trace_config]) as session:
         async with session.get(url) as resp:
             status_received = resp.status

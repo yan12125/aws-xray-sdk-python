@@ -9,9 +9,6 @@ from aws_xray_sdk.ext.util import strip_url, get_hostname
 
 patch(('requests',))
 
-# httpbin.org is created by the same author of requests to make testing http easy.
-BASE_URL = 'httpbin.org'
-
 
 @pytest.fixture(autouse=True)
 def construct_ctx():
@@ -27,12 +24,12 @@ def construct_ctx():
     xray_recorder.clear_trace_entities()
 
 
-def test_ok():
+def test_ok(httpbin):
     status_code = 200
-    url = 'http://{}/status/{}?foo=bar'.format(BASE_URL, status_code)
+    url = '{}/status/{}?foo=bar'.format(httpbin.url, status_code)
     requests.get(url)
     subsegment = xray_recorder.current_segment().subsegments[0]
-    assert get_hostname(url) == BASE_URL
+    assert get_hostname(url) == httpbin.host
     assert subsegment.name == get_hostname(url)
 
     http_meta = subsegment.http
@@ -41,9 +38,9 @@ def test_ok():
     assert http_meta['response']['status'] == status_code
 
 
-def test_error():
+def test_error(httpbin):
     status_code = 400
-    url = 'http://{}/status/{}'.format(BASE_URL, status_code)
+    url = '{}/status/{}'.format(httpbin.url, status_code)
     requests.post(url)
     subsegment = xray_recorder.current_segment().subsegments[0]
     assert subsegment.name == get_hostname(url)
@@ -55,9 +52,9 @@ def test_error():
     assert http_meta['response']['status'] == status_code
 
 
-def test_throttle():
+def test_throttle(httpbin):
     status_code = 429
-    url = 'http://{}/status/{}'.format(BASE_URL, status_code)
+    url = '{}/status/{}'.format(httpbin.url, status_code)
     requests.head(url)
     subsegment = xray_recorder.current_segment().subsegments[0]
     assert subsegment.name == get_hostname(url)
@@ -70,9 +67,9 @@ def test_throttle():
     assert http_meta['response']['status'] == status_code
 
 
-def test_fault():
+def test_fault(httpbin):
     status_code = 500
-    url = 'http://{}/status/{}'.format(BASE_URL, status_code)
+    url = '{}/status/{}'.format(httpbin.url, status_code)
     requests.put(url)
     subsegment = xray_recorder.current_segment().subsegments[0]
     assert subsegment.name == get_hostname(url)
@@ -115,39 +112,39 @@ def test_invalid_url():
     assert exception.type == 'MissingSchema'
 
 
-def test_name_uses_hostname():
-    url1 = 'http://{}/fakepath/stuff/koo/lai/ahh'.format(BASE_URL)
+def test_name_uses_hostname(httpbin):
+    url1 = '{}/fakepath/stuff/koo/lai/ahh'.format(httpbin.url)
     requests.get(url1)
     subsegment = xray_recorder.current_segment().subsegments[-1]
-    assert subsegment.name == BASE_URL
+    assert subsegment.name == httpbin.host
     http_meta1 = subsegment.http
     assert http_meta1['request']['url'] == strip_url(url1)
     assert http_meta1['request']['method'].upper() == 'GET'
 
-    url2 = 'http://{}/'.format(BASE_URL)
+    url2 = '{}/'.format(httpbin.url)
     requests.get(url2, params={"some": "payload", "not": "toBeIncluded"})
     subsegment = xray_recorder.current_segment().subsegments[-1]
-    assert subsegment.name == BASE_URL
+    assert subsegment.name == httpbin.host
     http_meta2 = subsegment.http
     assert http_meta2['request']['url'] == strip_url(url2)
     assert http_meta2['request']['method'].upper() == 'GET'
 
-    url3 = 'http://subdomain.{}/fakepath/stuff/koo/lai/ahh'.format(BASE_URL)
+    url3 = 'http://subdomain.{}:{}/fakepath/stuff/koo/lai/ahh'.format(httpbin.host, httpbin.port)
     try:
         requests.get(url3)
     except Exception:
         # This is an invalid url so we dont want to break the test
         pass
     subsegment = xray_recorder.current_segment().subsegments[-1]
-    assert subsegment.name == "subdomain." + BASE_URL
+    assert subsegment.name == "subdomain." + httpbin.host
     http_meta3 = subsegment.http
     assert http_meta3['request']['url'] == strip_url(url3)
     assert http_meta3['request']['method'].upper() == 'GET'
 
 
-def test_strip_http_url():
+def test_strip_http_url(httpbin):
     status_code = 200
-    url = 'http://{}/get?foo=bar'.format(BASE_URL)
+    url = '{}/get?foo=bar'.format(httpbin.url)
     requests.get(url)
     subsegment = xray_recorder.current_segment().subsegments[0]
     assert subsegment.name == get_hostname(url)

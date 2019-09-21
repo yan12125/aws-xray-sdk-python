@@ -104,7 +104,8 @@ def _send_request(wrapped, instance, args, kwargs):
             # (and may falsely be) http.
             ssl_cxt = getattr(instance, 'ssl_context', None)
         scheme = 'https' if ssl_cxt and type(ssl_cxt).__name__ == 'SSLContext' else 'http'
-        xray_url = '{}://{}{}'.format(scheme, instance.host, url)
+        # XXX: does it work with URLs without a port?
+        xray_url = '{}://{}:{}{}'.format(scheme, instance.host, instance.port, url)
         xray_data = _XRay_Data(method, instance.host, xray_url)
         setattr(instance, _XRAY_PROP, xray_data)
 
